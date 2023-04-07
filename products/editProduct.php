@@ -29,7 +29,7 @@ if (isset($_GET['id_product'])) {
     $IDproduct = $_GET['id_product'];
     $sql = "Select * from tbl_products WHERE id = $IDproduct;";
     $command = $dbh->query($sql);
-    foreach ($command as $row){
+    foreach ($command as $row) {
         $name = $row["name"];
         $price = $row["price"];
         $description = $row["description"];
@@ -37,9 +37,7 @@ if (isset($_GET['id_product'])) {
     }
     $sql = "Select * from tbl_images WHERE id_product = $IDproduct;";
     $allImg = $dbh->query($sql);
-}
-else
-{
+} else {
     echo "<h1 class='text-center text-danger'>Щось пішло не так</h1><br/>";
     exit();
 }
@@ -54,13 +52,21 @@ else
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = $_POST['name'];
     $description = $_POST['description'];
-    $inputImg = $_POST['input'];
-    $indexInput = $_POST['inputIndex'];
+    $uploadDirectory = __DIR__ . '/../dataImages/';
+    $saveUrl = '/dataImages/';
     $price = $_POST['price'];
     $id_categories = $_POST['input-id-categories'];
-    foreach ($indexInput as $img)
-        echo "$img";
-    if (!empty($name) && !empty($id_categories) && !empty($description) && !empty($price) && !empty($inputImg)) {
+    $files = '';
+    if (isset($_FILES["input"])) {
+        $files = $_FILES["input"];
+//        for($i = 0; $i < count($files["name"]); $i++) {
+//            $shos = $files["name"][$i];
+//            echo "$shos <br>";
+//        }
+    }
+
+
+    if (!empty($name) && !empty($id_categories) && !empty($description) && !empty($price) && !empty($files)) {
         $stmt = $dbh->prepare("UPDATE tbl_products SET name = :name, price = :price, description = :description, category_id = :id_categories where id = :mid");
         $stmt->bindParam(':name', $name);
         $stmt->bindParam(':mid', $IDproduct);
@@ -69,49 +75,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->bindParam(':id_categories', $id_categories);
         $stmt->execute();
 
-        $sql = "Select * from tbl_images WHERE id_product = $IDproduct;";
-        $existImage = $dbh->query($sql);
 
-        foreach ($existImage as $image)
-        {
-            $index = $image["id"];
-            if(in_array($index, $indexInput))
-            {
-                $count = 0;
-                do
+
+
+        $indexImage = $_POST['inputIndex'];
+        $countI = 0;
+        foreach ($indexImage as $ind) {
+            $splitStr = explode(" [type]", $ind);
+            $indThis = $splitStr[0];
+            if ($splitStr[1] == "add") {
+
+
+                $fileName = time() . "_" . rand(1000, 99999) . "_" . $files["name"][$countI]; // генеруємо унікальне ім'я файлу
+
+                $fileTmpName = $files["tmp_name"][$countI];
+                $tempUrlSave = $saveUrl.$fileName;
+                $filePath = $uploadDirectory . $fileName;
+                //Зберігання на сервер
+                move_uploaded_file($fileTmpName, $filePath);
+                //Зберігання до бази данних
+                $st = $dbh->prepare("INSERT INTO tbl_images (url_image, id_product) VALUES (:img, :id_product)");
+                $st->bindParam(':img', $tempUrlSave);
+                echo $IDproduct;
+                $st->bindParam(':id_product', $IDproduct);
+                $st->execute();
+
+            } else if ($splitStr[1] == "edit") {
+
+                $sql = "Select * from tbl_images WHERE id = $splitStr[0]";
+                $tempImg = $dbh->query($sql);
+                foreach ($tempImg as $thisImg)
                 {
-                    if($index == $indexInput[$count])
-                    {
-                        $stmt = $dbh->prepare("UPDATE tbl_images SET url_image = :new_url where id = :this_id");
-                        $stmt->bindParam(':new_url', $inputImg[$count]);
-                        $stmt->bindParam(':this_id', $index);
-                        $stmt->execute();
-                        break;
-                    }
-                    $count++;
-                }while ($index != $indexInput[$count]);
+                $idImg = $thisImg["id"];
+                $urlFile = $thisImg["url_image"];
+                    $urlFile = __DIR__ . '/../dataImages/' . basename($urlFile);
+                if (file_exists($urlFile)) {
+                    unlink($urlFile);
+                }
+                $fileName = time() . "_" . rand(1000, 99999) . "_" . $files["name"][$countI]; // генеруємо унікальне ім'я файлу
+
+                $fileTmpName = $files["tmp_name"][$countI];
+                $tempUrlSave = $saveUrl . $fileName;
+                $filePath = $uploadDirectory . $fileName;
+                //Зберігання на сервер
+                move_uploaded_file($fileTmpName, $filePath);
+
+                $stmt = $dbh->prepare("UPDATE tbl_images SET url_image = :new_url where id = :this_id");
+                $stmt->bindParam(':new_url', $tempUrlSave);
+                $stmt->bindParam(':this_id', $idImg);
+                $stmt->execute();
+                }
             }
-            else{
+            $countI++;
+
+        }
+        $newIndexs = array();
+        foreach ($indexImage as $ind) {
+            array_push($newIndexs, explode(" [type]",$ind)[0]);
+        }
+        foreach ($allImg as $imgDell) {
+            $index = $imgDell['id'];
+            $urlFile = $imgDell['url_image'];
+            $urlFile = __DIR__ . '/../dataImages/' . basename($urlFile);
+            if (!in_array($index, $newIndexs)) {
+                if (file_exists($urlFile)) {
+                    unlink($urlFile);
+                }
                 $stmt = $dbh->prepare('DELETE FROM tbl_images WHERE id = :id');
                 $stmt->bindParam(':id', $index);
                 $stmt->execute();
             }
         }
-        $count = 0;
-        foreach ($indexInput as $index){
-            if($index == "-1")
-            {
-                $st = $dbh->prepare("INSERT INTO tbl_images (url_image, id_product) VALUES (:img, :id_product)");
-                $st->bindParam(':img', $inputImg[$count]);
-                $st->bindParam(':id_product', $IDproduct);
-                $st->execute();
-            }
-            $count++;
-        }
-
 
         $url = "/products/tableProduct.php?id_categories=" . urlencode($id_categories);
-        header("Location: " . $url);
+        echo '<script>window.location.replace("' . $url . '");</script>';
         exit;
     }
 }
@@ -119,7 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <main>
     <div class="container">
         <h1 class="text-center">Додати товар</h1>
-        <form method="post" class="needs-validation" novalidate>
+        <form method="post" class="needs-validation" enctype="multipart/form-data" novalidate>
             <div class="mb-3">
                 <label for="name" class="form-label">Назва</label>
                 <input type="text" class="form-control" value="<?php echo $name ?>" id="name" name="name" required>
@@ -136,9 +173,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
 
             <div class="mb-3">
-                <input type="hidden" name="input-id-categories" value="<?php echo $id_categories ?>" id="input-id-categories" required>
+                <input type="hidden" name="input-id-categories" value="<?php echo $id_categories ?>"
+                       id="input-id-categories" required>
                 <label for="input-id-categories" class="form-label">Категорія товару:</label>
-                <select class="form-select"  id="select-id-categories" required>
+                <select class="form-select" id="select-id-categories" required>
                     <option selected disabled value="">Виберіть..</option>
                     <?php
                     $sql = "Select * from tbl_categories";//sql запит
@@ -148,10 +186,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $name = $row["name"];
                         $id_cat = $row["id"];
 
-                               if($id_cat != $id_categories)
-                               { echo"<option value='$id_cat'>$name</option>";}
-                                else
-                               {echo"<option value='$id_cat' selected>$name</option>";}
+                        if ($id_cat != $id_categories) {
+                            echo "<option value='$id_cat'>$name</option>";
+                        } else {
+                            echo "<option value='$id_cat' selected>$name</option>";
+                        }
 
                     }
                     ?>
@@ -168,16 +207,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <!-- перше поле -->
                     <?php
                     $count = 1;
-                    foreach ($allImg as $img)
-                    {
+                    foreach ($allImg as $img) {
                         $index = $img['id'];
                         $url = $img['url_image'];
-                        if($count != 1)
-                        {
-                            echo"<div class=\"btn-group mb-2 input-group\" data-index=\"$index\">
+                        $baseurl = __DIR__ . '/../dataImages/' . basename($url);
+                        if ($count != 1) {
+                            echo "<div class=\"btn-group mb-2 input-group\" data-index=\"$index\">
                                 <div class=\"col-sm-10\">
-                                    <input type=\"text\" value='$url' name=\"input[]\" class=\"form-control\" id=\"input-$index\" required/>
-                                    <input type='hidden' value='$index' name='inputIndex[]'/>
+                                    <label for=\"input-$count\">
+                                    <input type='hidden' name='inputIndex[]' class='inputImgIndex$count' value='$index [type]none'>
+                                        <img src=\"$url\" style=\"cursor:pointer;\" alt=\"Фото товару\"
+                                            width=\"120px\">
+                                    </label>
+                                    <input type=\"file\" name=\"input[]\"  class=\"d-none inputImg\" value='$baseurl' id=\"input-$count\" />
                                     <div class=\"invalid-feedback\">
                                         Вкажіть шлях до фото.
                                     </div>
@@ -185,14 +227,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <button type=\"button\" class=\"btn btn-primary add-input \">+</button>
                                 <button type=\"button\" class=\"btn btn-danger remove-input\">–</button>
                             </div>";
-                        }
-                        else
-                        {
-                            echo"
+                        } else {
+                            echo "
                             <div class=\"btn-group mb-2 input-group\" data-index=\"$index\">
                                 <div class=\"col-sm-11\">
-                                    <input type=\"text\" value='$url' name=\"input[]\" class=\"form-control\" id=\"input-$index\" required/>
-                                    <input type='hidden' value='$index' name='inputIndex[]'/>
+                                
+                                    <label for=\"input-$count\">
+                                    <input type='hidden' name='inputIndex[]' class='inputImgIndex$count' value='$index [type]none'>
+                                        <img src=\"$url\" style=\"cursor:pointer;\" alt=\"Фото товару\"
+                                            width=\"120px\">
+                                    </label>
+                                    <input type=\"file\" name=\"input[]\"  class=\"d-none inputImg\" value='$baseurl' id=\"input-$count\" />
                                     <div class=\"invalid-feedback\">
                                         Вкажіть шлях до фото.
                                     </div>
@@ -234,11 +279,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         const selectedValue = event.target.value;
         document.getElementById('input-id-categories').value = selectedValue;
     });
-
+    var count = <?php echo $count;?>;
+    function setCount(i){
+        count = i;
+    }
 
     $(document).ready(function () {
         // Лічильник для індексування полів input
-        var count = 1;
+
 
         // Обробник події для кнопки, яка додає нові поля input
         $("#input-list").on("click", ".add-input", function () {
@@ -246,19 +294,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             var input =
                 '<div class="btn-group mb-2 input-group" data-index="' + count + '">' +
                 '<div class="col-sm-10">' +
-                '<input required type="text" name="input[]" class="form-control" id="input-' + count + '">' +
-                '<input type="hidden" value="-1" name="inputIndex[]"/>'+
-                '<div class="invalid-feedback"> Вкажіть шлях до фото. </div>'+
+                '<label for="input-' + count + '">' +
+                '<input type="hidden" name="inputIndex[]" class="inputImgIndex' + count + '" value="... [type]add">' +
+                '<img src="/dataImages/upload.jpg" style="cursor:pointer;" alt="Фото товару" width="120px">' +
+                '</label>' +
+                '<input type="file" name="input[]" class="d-none inputImg" id="input-' + count + '" required/>' +
+                '<div class="invalid-feedback"> Вкажіть шлях до фото. </div>' +
                 '</div>' +
                 '<button type="button" class="btn btn-primary add-input">+</button>' +
-
                 '<button type="button" class="btn btn-danger remove-input">–</button>' +
                 '</div>';
 
             $("#input-list").append(input);
         });
 
-
+        $("#input-list").on("change", ".inputImg", function (e) {
+            console.log(e.target.files[0]);
+            console.log(this.value);
+            const label = document.querySelector(`label[for="${this.id}"]`);
+            const img = label.querySelector('img');
+            const input = document.querySelector(`input.inputImgIndex${this.id.split("-")[1]}`);
+            if (input.value.split(" [type]")[1] == 'none')
+                input.value = input.value.replace("none", "edit");
+            img.src = URL.createObjectURL(e.target.files[0]);
+        });
         // видалення
         $("#input-list").on("click", ".remove-input", function () {
             var index = $(this).closest(".input-group").attr("data-index");

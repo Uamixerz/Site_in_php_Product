@@ -10,7 +10,9 @@
     <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-
+<?php
+ob_start();
+?>
 <!--Меню зверху (хедер) підключаємо його на кожну сторінку-->
 <header>
     <nav class="navbar navbar-expand-md navbar-dark fixed-top bg-dark">
@@ -40,7 +42,9 @@
         </div>
     </nav>
 </header>
-
+<?php
+ob_end_flush();
+?>
 <script src="/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

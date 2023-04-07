@@ -12,7 +12,7 @@
 <body>
 <?php include($_SERVER["DOCUMENT_ROOT"]."/_header.php"); ?>
 <?php include($_SERVER["DOCUMENT_ROOT"] . "/categories/tableCategories.php"); ?>
-<?php include($_SERVER["DOCUMENT_ROOT"]."/products/tableProduct.php"); ?>
+
 <main>
     <div class="container">
 

@@ -19,21 +19,52 @@
         try {
 
             $mid = $_POST['user_id'];
-            if($mid != "-1"){
-            $stmt = $dbh->prepare('DELETE FROM tbl_categories WHERE id = :id');
-            $stmt->bindParam(':id', $mid);
-            $stmt->execute();}
-            else if ($_POST['user_id_edit'] != "-1"){
+
+            if ($mid != "-1") {
+
+                $sql = "Select * from tbl_categories WHERE id = $mid";
+                $temp = $dbh->query($sql);
+                foreach ($temp as $tempImg)
+                {
+                $urlFile = $tempImg["image"];
+                $urlFile = __DIR__ . '/../dataImages/' . basename($urlFile);
+                if (file_exists($urlFile)) {
+                    unlink($urlFile);
+                }
+                $sql = "Select * from tbl_products where category_id = '$mid'";
+                $command = $dbh->query($sql);
+                foreach ($command as $prod){
+                    $id_prod = $prod['id'];
+                    $sql = "Select * from tbl_images WHERE id_product = $id_prod";
+                    $tempImg = $dbh->query($sql);
+                    foreach ($tempImg as $thisImg) {
+                        $idImg = $thisImg["id"];
+                        $urlFile = $thisImg["url_image"];
+                        $urlFile = __DIR__ . '/../dataImages/' . basename($urlFile);
+                        if (file_exists($urlFile)) {
+                            unlink($urlFile);
+                        }
+                    }
+                    $stmt = $dbh->prepare('DELETE FROM tbl_images WHERE id_product = :id');
+                    $stmt->bindParam(':id', $id_prod);
+                    $stmt->execute();
+                    $stmt = $dbh->prepare('DELETE FROM tbl_products WHERE id = :id');
+                    $stmt->bindParam(':id', $id_prod);
+                    $stmt->execute();
+                }
+
+                $stmt = $dbh->prepare('DELETE FROM tbl_categories WHERE id = :id');
+                $stmt->bindParam(':id', $mid);
+                $stmt->execute();}
+            } else if ($_POST['user_id_edit'] != "-1") {
                 $mid = $_POST['user_id_edit'];
                 $url = "/categories/editCategories.php?element=" . urlencode($mid);
-                header("Location: " . $url);
+                echo '<script>window.location.replace("' . $url . '");</script>';
                 exit;
-            }
-            else
-            {
+            } else {
                 $mid = $_POST['user_id_info'];
                 $url = "/products/tableProduct.php?id_categories=" . urlencode($mid);
-                header("Location: " . $url);
+                echo '<script>window.location.replace("' . $url . '");</script>';
                 exit;
             }
 
@@ -95,15 +126,17 @@
 </main>
 <script>
     function updateInputValue(value) {
-       var i = new bootstrap.Modal(document.getElementById("deleteModal"));
-       i.show();
         document.getElementsByName('user_id')[0].value = value;
+        var i = new bootstrap.Modal(document.getElementById("deleteModal"));
+        i.show();
     }
-    function startEdit(value){
+
+    function startEdit(value) {
         document.getElementsByName('user_id')[0].value = "-1";
         document.getElementsByName('user_id_edit')[0].value = value;
     }
-    function startInfo(value){
+
+    function startInfo(value) {
         document.getElementsByName('user_id')[0].value = "-1";
         document.getElementsByName('user_id_edit')[0].value = "-1";
         document.getElementsByName('user_id_info')[0].value = value;

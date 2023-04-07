@@ -26,6 +26,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $mid = $_POST['id_item_delete'];
 
         if ($mid != "-1") {
+            $sql = "Select * from tbl_images WHERE id_product = $mid";
+            $tempImg = $dbh->query($sql);
+            foreach ($tempImg as $thisImg) {
+                $idImg = $thisImg["id"];
+                $urlFile = $thisImg["url_image"];
+                $urlFile = __DIR__ . '/../dataImages/' . basename($urlFile);
+                if (file_exists($urlFile)) {
+                    unlink($urlFile);
+                }
+            }
             $stmt = $dbh->prepare('DELETE FROM tbl_images WHERE id_product = :id');
             $stmt->bindParam(':id', $mid);
             $stmt->execute();
@@ -35,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else if ($_POST['id_item_edit'] != "-1") {
             $mid = $_POST['id_item_edit'];
             $url = "/products/editProduct.php?id_product=" . urlencode($mid);
-            header("Location: " . $url);
+            echo '<script>window.location.replace("' . $url . '");</script>';
             exit;
         }
 

@@ -27,11 +27,17 @@ $name_categories = "";
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = $_POST['name'];
     $description = $_POST['description'];
-    $inputImg = $_POST['input'];
+    $uploadDirectory = __DIR__ . '/../dataImages/';
+    $saveUrl = '/dataImages/';
+    $files = '';
     $price = $_POST['price'];
     $id_categories = $_POST['input-id-categories'];
-    echo "$id_categories";
-    if (!empty($name) && !empty($id_categories) && !empty($description) && !empty($price) && !empty($inputImg)) {
+
+    if(isset($_FILES["input"])) {
+
+
+    $files = $_FILES["input"];
+    if (!empty($name) && !empty($id_categories) && !empty($description) && !empty($price) && !empty($files)) {
         $stmt = $dbh->prepare("INSERT INTO tbl_products (name, price, description, category_id) VALUES (:name, :price, :description, :id_categories)");
         $stmt->bindParam(':name', $name);
         $stmt->bindParam(':price', $price);
@@ -41,24 +47,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $newid = $dbh->lastInsertId();
 
-        foreach ($inputImg as $image)
-        {
+        for($i = 0; $i < count($files["name"]); $i++) {
+            $fileName = time() . "_" . rand(1000, 99999) . "_" . $files["name"][$i]; // генеруємо унікальне ім'я файлу
+
+            $fileTmpName = $files["tmp_name"][$i];
+            $tempUrlSave = $saveUrl . $fileName;
+            $filePath = $uploadDirectory . $fileName;
+            //Зберігання на сервер
+            move_uploaded_file($fileTmpName, $filePath);
+            //Зберігання до бази данних
             $st = $dbh->prepare("INSERT INTO tbl_images (url_image, id_product) VALUES (:img, :id_product)");
-            $st->bindParam(':img', $image);
+            $st->bindParam(':img', $tempUrlSave);
             $st->bindParam(':id_product', $newid);
             $st->execute();
         }
 
-
-        header("Location: /");
+        echo '<script>window.location.replace("' . "/" . '");</script>';
         exit;
-    }
+    }}
+    echo "<h1>упс...</h1>";
 }
 ?>
 <main>
     <div class="container">
         <h1 class="text-center">Додати товар</h1>
-        <form method="post" class="needs-validation" novalidate>
+        <form method="post" class="needs-validation" enctype="multipart/form-data" novalidate >
             <div class="mb-3">
                 <label for="name" class="form-label">Назва</label>
                 <input type="text" class="form-control" value="<?php echo $name ?>" id="name" name="name" required>
@@ -75,7 +88,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
 
             <div class="mb-3">
-                <input type="hidden" name="input-id-categories" value="<?php echo $id_categories ?>" id="input-id-categories" required>
+                <input type="hidden" name="input-id-categories" value="<?php echo $id_categories ?>"
+                       id="input-id-categories" required>
                 <label for="input-id-categories" class="form-label">Категорія товару:</label>
                 <select class="form-select" id="select-id-categories" required>
                     <option selected disabled value="">Виберіть..</option>
@@ -86,9 +100,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     foreach ($command as $row) {
                         $name = $row["name"];
                         $id_cat = $row["id"];
-                        echo "
-                                <option value='$id_cat'>$name</option>
-                            ";
+
+                        if($id_cat != $id_categories)
+                        { echo"<option value='$id_cat'>$name</option>";}
+                        else if (!empty($id_categories))
+                        {echo"<option value='$id_cat' selected>$name</option>";}
+                        else{
+                            echo"<option selected >Виберіть...</option>";
+                        }
                     }
                     ?>
                 </select>
@@ -103,13 +122,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div id="input-list" class="mb-">
                     <!-- перше поле -->
                     <div class="btn-group mb-2 input-group" data-index="1">
-                        <div class="col-sm-11">
-                            <input type="text" name="input[]" class="form-control" id="input-1" required/>
+                        <div class="col-sm-10">
+                            <label for="input-1">
+                                <img src="/dataImages/upload.jpg" style="cursor:pointer;" alt="Фото товару"
+                                     width="120px">
+                            </label>
+                            <input type="file" name="input[]" class="d-none inputImg" id="input-1" value="${file.value}" required/>
                             <div class="invalid-feedback">
                                 Вкажіть шлях до фото.
                             </div>
                         </div>
-                            <button type="button" class="btn btn-primary add-input ">+</button>
+                        <button type="button" class="btn btn-primary add-input ">+</button>
                     </div>
                 </div>
 
@@ -151,19 +174,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             count++;
             var input =
                 '<div class="btn-group mb-2 input-group" data-index="' + count + '">' +
-                    '<div class="col-sm-10">' +
-                        '<input required type="text" name="input[]" class="form-control" id="input-' + count + '">' +
-                        '<div class="invalid-feedback"> Вкажіть шлях до фото. </div>'+
-                    '</div>' +
-                        '<button type="button" class="btn btn-primary add-input">+</button>' +
-
-                        '<button type="button" class="btn btn-danger remove-input">–</button>' +
+                '<div class="col-sm-10">' +
+                '<label for="input-'+count+'">' +
+                '<img src="/dataImages/upload.jpg" style="cursor:pointer;" alt="Фото товару" width="120px">'+
+                '</label>' +
+                '<input type="file" name="input[]" class="d-none inputImg" id="input-'+count+'" required/>' +
+                '<div class="invalid-feedback"> Вкажіть шлях до фото. </div>' +
+                '</div>' +
+                '<button type="button" class="btn btn-primary add-input">+</button>' +
+                '<button type="button" class="btn btn-danger remove-input">–</button>' +
                 '</div>';
 
             $("#input-list").append(input);
         });
 
-
+        $("#input-list").on("change", ".inputImg", function (e){
+           console.log(e.target.files[0]);
+            const label = document.querySelector(`label[for="${this.id}"]`);
+            const img = label.querySelector('img');
+            img.src = URL.createObjectURL(e.target.files[0]);
+        });
         // видалення
         $("#input-list").on("click", ".remove-input", function () {
             var index = $(this).closest(".input-group").attr("data-index");
